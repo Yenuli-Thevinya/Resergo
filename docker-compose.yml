@@ -1,0 +1,15 @@
+# Optional: a local PostgreSQL for development.   docker compose up -d
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: resergo
+    ports:
+      - "5432:5432"
+    volumes:
+      - resergo-db:/var/lib/postgresql/data
+volumes:
+  resergo-db:

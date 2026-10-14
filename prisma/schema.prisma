@@ -1,0 +1,110 @@
+// Resergo — resource reservation database schema (PostgreSQL)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// Operational status only. "Booked" is NEVER stored: it is calculated from reservations.
+enum ResourceStatus {
+  AVAILABLE
+  UNAVAILABLE
+  MAINTENANCE
+}
+
+/// Stored state. "In progress" and "Completed" are derived from start/end time when displayed.
+enum ReservationStatus {
+  UPCOMING
+  COMPLETED
+  CANCELLED
+}
+
+model Department {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+}
+
+model User {
+  id           Int        @id @default(autoincrement())
+  fullName     String
+  email        String     @unique
+  passwordHash String
+  departmentId Int
+  role         Role       @default(USER)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  department   Department    @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  reservations Reservation[]
+  sessions     Session[]
+
+  @@index([departmentId])
+}
+
+model Resource {
+  id          Int            @id @default(autoincrement())
+  name        String         @unique
+  category    String
+  description String?
+  location    String
+  capacity    String?
+  status      ResourceStatus @default(AVAILABLE)
+  /// false = deactivated (hidden from lists, reservation history is kept)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  reservations Reservation[]
+}
+
+model Reservation {
+  id         Int               @id @default(autoincrement())
+  resourceId Int
+  userId     Int
+  startTime  DateTime          @db.Timestamptz(3)
+  endTime    DateTime          @db.Timestamptz(3)
+  purpose    String
+  status     ReservationStatus @default(UPCOMING)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([resourceId, startTime, endTime])
+  @@index([userId, startTime])
+  @@index([startTime])
+}
+
+/// Server-side login sessions. Only a SHA-256 hash of the cookie token is stored.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    Int
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
